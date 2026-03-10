@@ -13,7 +13,7 @@ interface SlotButtonProps {
 export function SlotButton({ slotNum, assignment, onTap, onLongPress }: SlotButtonProps) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isLongPress = useRef(false)
-  const usedTouch = useRef(false)
+  const isTouchDevice = useRef(false)
 
   const clearTimer = useCallback(() => {
     if (timerRef.current) {
@@ -22,39 +22,16 @@ export function SlotButton({ slotNum, assignment, onTap, onLongPress }: SlotButt
     }
   }, [])
 
-  const handleTouchStart = useCallback(() => {
-    usedTouch.current = true
+  const startPress = useCallback(() => {
     isLongPress.current = false
-    timerRef.current = setTimeout(() => {
-      isLongPress.current = true
-      onLongPress(slotNum)
-    }, 500)
-  }, [slotNum, onLongPress])
-
-  const handleTouchEnd = useCallback(() => {
     clearTimer()
-    if (!isLongPress.current) {
-      onTap(slotNum)
-    }
-  }, [slotNum, onTap, clearTimer])
-
-  const handleMouseDown = useCallback(() => {
-    if (usedTouch.current) {
-      usedTouch.current = false
-      return
-    }
-    isLongPress.current = false
     timerRef.current = setTimeout(() => {
       isLongPress.current = true
       onLongPress(slotNum)
     }, 500)
-  }, [slotNum, onLongPress])
+  }, [slotNum, onLongPress, clearTimer])
 
-  const handleMouseUp = useCallback(() => {
-    if (usedTouch.current) {
-      usedTouch.current = false
-      return
-    }
+  const endPress = useCallback(() => {
     clearTimer()
     if (!isLongPress.current) {
       onTap(slotNum)
@@ -68,11 +45,24 @@ export function SlotButton({ slotNum, assignment, onTap, onLongPress }: SlotButt
           ? "border-blue-500 bg-white"
           : "border-neutral-300 bg-neutral-50 active:bg-blue-50"
         }`}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
+      onTouchStart={(e) => {
+        e.preventDefault()
+        isTouchDevice.current = true
+        startPress()
+      }}
+      onTouchEnd={(e) => {
+        e.preventDefault()
+        endPress()
+      }}
       onTouchCancel={clearTimer}
-      onMouseDown={handleMouseDown}
-      onMouseUp={handleMouseUp}
+      onMouseDown={() => {
+        if (isTouchDevice.current) return
+        startPress()
+      }}
+      onMouseUp={() => {
+        if (isTouchDevice.current) return
+        endPress()
+      }}
       onMouseLeave={clearTimer}
       onContextMenu={(e) => {
         e.preventDefault()
