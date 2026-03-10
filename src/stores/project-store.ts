@@ -129,7 +129,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const { photos, currentPhotoIdx, currentPage, slots } = get()
     if (photos.length === 0) return
 
-    const photo = photos[currentPhotoIdx]
+    const safeIdx = Math.min(currentPhotoIdx, photos.length - 1)
+    const photo = photos[safeIdx]
     const key = slotKey(currentPage, slotNum)
     const existing = slots[key]
 
@@ -139,7 +140,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       slotNum,
       photoId: photo.id,
       previousPhotoId: existing?.photoId,
-      previousPhotoIdx: currentPhotoIdx,
+      previousPhotoIdx: safeIdx,
     }
 
     const newSlot: SlotAssignment = {
@@ -152,7 +153,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set((state) => ({
       slots: { ...state.slots, [key]: newSlot },
       actionHistory: [...state.actionHistory, record],
-      currentPhotoIdx: Math.min(currentPhotoIdx + 1, photos.length - 1),
+      currentPhotoIdx: Math.min(safeIdx + 1, photos.length - 1),
     }))
   },
 

@@ -99,50 +99,60 @@ export async function generateExcel(
       if (!photoBlob) continue
 
       if (slotIdx < config.coordinates.images.length) {
-        const imgCoord = config.coordinates.images[slotIdx]
-        const targetRow = imgCoord.row + pageOffset
-        const targetCol = imgCoord.col
+        try {
+          const imgCoord = config.coordinates.images[slotIdx]
+          const targetRow = imgCoord.row + pageOffset
+          const targetCol = imgCoord.col
 
-        const cellSize = getMergedCellSize(worksheet, targetRow, targetCol)
-        const processedBlob = await processImage(
-          photoBlob,
-          config.cropBottom
-        )
+          const cellSize = getMergedCellSize(worksheet, targetRow, targetCol)
+          const processedBlob = await processImage(
+            photoBlob,
+            config.cropBottom
+          )
 
-        const imgBuffer = await processedBlob.arrayBuffer()
-        const imageId = workbook.addImage({
-          buffer: imgBuffer,
-          extension: "jpeg",
-        })
+          const imgBuffer = await processedBlob.arrayBuffer()
+          const imageId = workbook.addImage({
+            buffer: imgBuffer,
+            extension: "jpeg",
+          })
 
-        const imgBitmap = await createImageBitmap(processedBlob)
-        const imgRatio = imgBitmap.width / imgBitmap.height
-        const cellWMargin = cellSize.width - MARGIN * 2
-        const cellHMargin = cellSize.height - MARGIN * 2
-        const cellRatio = cellWMargin / cellHMargin
+          const imgBitmap = await createImageBitmap(processedBlob)
+          const imgRatio = imgBitmap.width / imgBitmap.height
+          const cellWMargin = cellSize.width - MARGIN * 2
+          const cellHMargin = cellSize.height - MARGIN * 2
 
-        let finalWidth: number
-        let finalHeight: number
+          if (cellHMargin <= 0 || cellWMargin <= 0) {
+            imgBitmap.close()
+            continue
+          }
 
-        if (imgRatio > cellRatio) {
-          finalWidth = cellWMargin
-          finalHeight = cellWMargin / imgRatio
-        } else {
-          finalHeight = cellHMargin
-          finalWidth = cellHMargin * imgRatio
+          const cellRatio = cellWMargin / cellHMargin
+
+          let finalWidth: number
+          let finalHeight: number
+
+          if (imgRatio > cellRatio) {
+            finalWidth = cellWMargin
+            finalHeight = cellWMargin / imgRatio
+          } else {
+            finalHeight = cellHMargin
+            finalWidth = cellHMargin * imgRatio
+          }
+
+          const offsetX = (cellSize.width - finalWidth) / 2
+          const offsetY = (cellSize.height - finalHeight) / 2
+
+          worksheet.addImage(imageId, {
+            tl: {
+              col: targetCol - 1 + offsetX / (CHAR_WIDTH_PX * 8.43),
+              row: targetRow - 1 + offsetY / (ROW_HEIGHT_PX * 15),
+            },
+            ext: { width: finalWidth, height: finalHeight },
+          })
+          imgBitmap.close()
+        } catch (error) {
+          console.error(`이미지 삽입 실패 (페이지 ${page.pageNum}, 슬롯 ${slotIdx + 1}):`, error)
         }
-
-        const offsetX = (cellSize.width - finalWidth) / 2
-        const offsetY = (cellSize.height - finalHeight) / 2
-
-        worksheet.addImage(imageId, {
-          tl: {
-            col: targetCol - 1 + offsetX / (CHAR_WIDTH_PX * 8.43),
-            row: targetRow - 1 + offsetY / (ROW_HEIGHT_PX * 15),
-          },
-          ext: { width: finalWidth, height: finalHeight },
-        })
-        imgBitmap.close()
       }
 
       if (slotIdx < config.coordinates.texts.length) {

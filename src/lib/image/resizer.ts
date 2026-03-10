@@ -6,6 +6,11 @@ export async function processImage(
   const bitmap = await createImageBitmap(blob)
   const { width, height } = bitmap
 
+  if (width === 0 || height === 0) {
+    bitmap.close()
+    throw new Error("Invalid image dimensions")
+  }
+
   const scale = Math.min(1, maxSize / Math.max(width, height))
   const newWidth = Math.round(width * scale)
   const newHeight = Math.round(height * scale)
@@ -37,6 +42,11 @@ export async function createThumbnail(
 ): Promise<Blob> {
   const bitmap = await createImageBitmap(blob)
   const { width, height } = bitmap
+
+  if (width === 0 || height === 0) {
+    bitmap.close()
+    throw new Error("Invalid image dimensions")
+  }
 
   const scale = Math.min(size / width, size / height)
   const newWidth = Math.round(width * scale)
