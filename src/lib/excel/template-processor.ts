@@ -2,15 +2,13 @@ import ExcelJS from "exceljs"
 import type { ExcelConfig } from "@/types/excel"
 import type { Page } from "@/types/project"
 import { getPhoto } from "@/lib/storage/indexed-db"
-import { processImage } from "@/lib/image/resizer"
-
-const MARGIN_RATIO = 0.03
+import { toCellAddress } from "./cell-parser"
 
 function findMergeRange(
   worksheet: ExcelJS.Worksheet,
   row: number,
   col: number
-): { startRow: number; endRow: number; startCol: number; endCol: number } {
+): { startRow: number; endRow: number; startCol: number; endCol: number } | null {
   for (const range of worksheet.model.merges ?? []) {
     const match = range.match(/^([A-Z]+)(\d+):([A-Z]+)(\d+)$/)
     if (!match) continue
@@ -27,124 +25,67 @@ function findMergeRange(
     }
   }
 
-  return { startRow: row, endRow: row, startCol: col, endCol: col }
+  return null
 }
 
-function getColWidthPx(worksheet: ExcelJS.Worksheet, col: number): number {
-  const colObj = worksheet.getColumn(col)
-  return (colObj.width ?? 8.43) * 7.5 + 5
-}
-
-function getRowHeightPx(worksheet: ExcelJS.Worksheet, row: number): number {
-  const rowObj = worksheet.getRow(row)
-  return (rowObj.height ?? 15) * 1.333
-}
-
-function getCellRangeSizePx(
+function toImagePosition(
   worksheet: ExcelJS.Worksheet,
-  startRow: number,
-  endRow: number,
-  startCol: number,
-  endCol: number
-): { width: number; height: number } {
-  let width = 0
-  for (let c = startCol; c <= endCol; c++) {
-    width += getColWidthPx(worksheet, c)
-  }
-  let height = 0
-  for (let r = startRow; r <= endRow; r++) {
-    height += getRowHeightPx(worksheet, r)
-  }
-  return { width, height }
-}
-
-function computeImagePlacement(
-  worksheet: ExcelJS.Worksheet,
-  merge: { startRow: number; endRow: number; startCol: number; endCol: number },
-  imgWidth: number,
-  imgHeight: number
+  row: number,
+  col: number
 ): { tl: { col: number; row: number }; br: { col: number; row: number } } {
-  const cellSize = getCellRangeSizePx(
-    worksheet, merge.startRow, merge.endRow, merge.startCol, merge.endCol
-  )
+  const merge = findMergeRange(worksheet, row, col)
 
-  const marginX = cellSize.width * MARGIN_RATIO
-  const marginY = cellSize.height * MARGIN_RATIO
-  const availW = cellSize.width - marginX * 2
-  const availH = cellSize.height - marginY * 2
-
-  if (availW <= 0 || availH <= 0) {
+  if (merge) {
     return {
       tl: { col: merge.startCol - 1, row: merge.startRow - 1 },
       br: { col: merge.endCol, row: merge.endRow },
     }
   }
 
-  const imgRatio = imgWidth / imgHeight
-  const cellRatio = availW / availH
-
-  let finalW: number
-  let finalH: number
-  if (imgRatio > cellRatio) {
-    finalW = availW
-    finalH = availW / imgRatio
-  } else {
-    finalH = availH
-    finalW = availH * imgRatio
-  }
-
-  const padX = (cellSize.width - finalW) / 2
-  const padY = (cellSize.height - finalH) / 2
-
-  const tlColFrac = pxToColFraction(worksheet, merge.startCol, padX)
-  const tlRowFrac = pxToRowFraction(worksheet, merge.startRow, padY)
-  const brColFrac = pxToColFraction(worksheet, merge.startCol, padX + finalW)
-  const brRowFrac = pxToRowFraction(worksheet, merge.startRow, padY + finalH)
-
   return {
-    tl: { col: tlColFrac, row: tlRowFrac },
-    br: { col: brColFrac, row: brRowFrac },
+    tl: { col: col - 1, row: row - 1 },
+    br: { col: col, row: row },
   }
 }
 
-function pxToColFraction(
-  worksheet: ExcelJS.Worksheet,
-  startCol: number,
-  px: number
-): number {
-  let remaining = px
-  let col = startCol
-
-  while (remaining > 0) {
-    const colW = getColWidthPx(worksheet, col)
-    if (remaining < colW) {
-      return (col - 1) + remaining / colW
-    }
-    remaining -= colW
-    col++
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer)
+  let binary = ""
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i])
   }
-
-  return col - 1
+  return btoa(binary)
 }
 
-function pxToRowFraction(
-  worksheet: ExcelJS.Worksheet,
-  startRow: number,
-  px: number
-): number {
-  let remaining = px
-  let row = startRow
+function detectExtension(blob: Blob): "jpeg" | "png" {
+  if (blob.type === "image/png") return "png"
+  return "jpeg"
+}
 
-  while (remaining > 0) {
-    const rowH = getRowHeightPx(worksheet, row)
-    if (remaining < rowH) {
-      return (row - 1) + remaining / rowH
+async function toJpegBase64(blob: Blob): Promise<{ base64: string; extension: "jpeg" | "png" }> {
+  try {
+    const bitmap = await createImageBitmap(blob)
+    const maxSize = 1200
+    const scale = Math.min(1, maxSize / Math.max(bitmap.width, bitmap.height))
+    const w = Math.round(bitmap.width * scale)
+    const h = Math.round(bitmap.height * scale)
+
+    const canvas = new OffscreenCanvas(w, h)
+    const ctx = canvas.getContext("2d")
+    if (!ctx) {
+      bitmap.close()
+      throw new Error("Canvas context unavailable")
     }
-    remaining -= rowH
-    row++
-  }
+    ctx.drawImage(bitmap, 0, 0, w, h)
+    bitmap.close()
 
-  return row - 1
+    const jpegBlob = await canvas.convertToBlob({ type: "image/jpeg", quality: 0.85 })
+    const buffer = await jpegBlob.arrayBuffer()
+    return { base64: arrayBufferToBase64(buffer), extension: "jpeg" }
+  } catch {
+    const buffer = await blob.arrayBuffer()
+    return { base64: arrayBufferToBase64(buffer), extension: detectExtension(blob) }
+  }
 }
 
 export async function generateExcel(
@@ -196,31 +137,16 @@ export async function generateExcel(
           const targetRow = imgCoord.row + pageOffset
           const targetCol = imgCoord.col
 
-          const merge = findMergeRange(worksheet, targetRow, targetCol)
-
-          const processedBlob = await processImage(
-            photoBlob,
-            config.cropBottom
-          )
-
-          const imgBuffer = await processedBlob.arrayBuffer()
+          const { base64, extension } = await toJpegBase64(photoBlob)
           const imageId = workbook.addImage({
-            buffer: imgBuffer,
-            extension: "jpeg",
+            base64,
+            extension,
           })
 
-          const imgBitmap = await createImageBitmap(processedBlob)
-          const placement = computeImagePlacement(
-            worksheet,
-            merge,
-            imgBitmap.width,
-            imgBitmap.height
-          )
-          imgBitmap.close()
-
+          const pos = toImagePosition(worksheet, targetRow, targetCol)
           worksheet.addImage(imageId, {
-            tl: placement.tl as ExcelJS.Anchor,
-            br: placement.br as ExcelJS.Anchor,
+            tl: pos.tl as ExcelJS.Anchor,
+            br: pos.br as ExcelJS.Anchor,
             editAs: "oneCell",
           })
         } catch (error) {
