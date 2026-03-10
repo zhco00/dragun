@@ -1,0 +1,37 @@
+{
+  "name": "site-photo-pwa",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --webpack",
+    "build": "next build --webpack",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@radix-ui/react-dialog": "^1.1.15",
+    "@radix-ui/react-radio-group": "^1.3.8",
+    "@radix-ui/react-select": "^2.2.6",
+    "@radix-ui/react-switch": "^1.2.6",
+    "@radix-ui/react-toast": "^1.2.15",
+    "@serwist/next": "^9.5.6",
+    "@tailwindcss/postcss": "^4.2.1",
+    "@types/file-saver": "^2.0.7",
+    "@types/node": "^25.4.0",
+    "@types/react": "^19.2.14",
+    "@use-gesture/react": "^10.3.1",
+    "browser-image-compression": "^2.0.2",
+    "exceljs": "^4.4.0",
+    "file-saver": "^2.0.5",
+    "idb-keyval": "^6.2.2",
+    "next": "^16.1.6",
+    "postcss": "^8.5.8",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "serwist": "^9.5.6",
+    "tailwindcss": "^4.2.1",
+    "typescript": "^5.9.3",
+    "zod": "^4.3.6",
+    "zustand": "^5.0.11"
+  }
+}

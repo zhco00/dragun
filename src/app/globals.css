@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+html,
+body {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+input,
+select {
+  user-select: text;
+  -webkit-user-select: text;
+}
