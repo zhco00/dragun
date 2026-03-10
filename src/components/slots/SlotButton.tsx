@@ -13,8 +13,17 @@ interface SlotButtonProps {
 export function SlotButton({ slotNum, assignment, onTap, onLongPress }: SlotButtonProps) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const isLongPress = useRef(false)
+  const usedTouch = useRef(false)
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+  }, [])
 
   const handleTouchStart = useCallback(() => {
+    usedTouch.current = true
     isLongPress.current = false
     timerRef.current = setTimeout(() => {
       isLongPress.current = true
@@ -23,21 +32,34 @@ export function SlotButton({ slotNum, assignment, onTap, onLongPress }: SlotButt
   }, [slotNum, onLongPress])
 
   const handleTouchEnd = useCallback(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
+    clearTimer()
     if (!isLongPress.current) {
       onTap(slotNum)
     }
-  }, [slotNum, onTap])
+  }, [slotNum, onTap, clearTimer])
 
-  const handleTouchCancel = useCallback(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current)
-      timerRef.current = null
+  const handleMouseDown = useCallback(() => {
+    if (usedTouch.current) {
+      usedTouch.current = false
+      return
     }
-  }, [])
+    isLongPress.current = false
+    timerRef.current = setTimeout(() => {
+      isLongPress.current = true
+      onLongPress(slotNum)
+    }, 500)
+  }, [slotNum, onLongPress])
+
+  const handleMouseUp = useCallback(() => {
+    if (usedTouch.current) {
+      usedTouch.current = false
+      return
+    }
+    clearTimer()
+    if (!isLongPress.current) {
+      onTap(slotNum)
+    }
+  }, [slotNum, onTap, clearTimer])
 
   return (
     <button
@@ -48,10 +70,10 @@ export function SlotButton({ slotNum, assignment, onTap, onLongPress }: SlotButt
         }`}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
-      onTouchCancel={handleTouchCancel}
-      onMouseDown={handleTouchStart}
-      onMouseUp={handleTouchEnd}
-      onMouseLeave={handleTouchCancel}
+      onTouchCancel={clearTimer}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={clearTimer}
       onContextMenu={(e) => {
         e.preventDefault()
         onLongPress(slotNum)

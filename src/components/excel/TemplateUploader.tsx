@@ -30,7 +30,7 @@ export function TemplateUploader() {
       <input
         ref={inputRef}
         type="file"
-        accept=".xlsx,.xls,.xlsm"
+        accept=".xlsx,.xls,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
         className="hidden"
         onChange={handleFileChange}
       />
